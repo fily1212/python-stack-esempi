@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stepper Python: highlight + call stack</title>
+  <style>
+    :root{
+      --bg:#0f172a; /* slate-900 */
+      --panel:#111827; /* gray-900 */
+      --ink:#e5e7eb; /* gray-200 */
+      --muted:#94a3b8; /* slate-400 */
+      --accent:#22d3ee; /* cyan-400 */
+      --accent-2:#f59e0b; /* amber-500 */
+      --success:#34d399; /* green-400 */
+      --danger:#f87171; /* red-400 */
+      --grid:#1f2937;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;background:linear-gradient(180deg,#0b1224,#0f172a 30%);color:var(--ink)}
+    header{padding:16px 20px;border-bottom:1px solid #1f2937;background:rgba(17,24,39,.7);backdrop-filter:blur(6px);position:sticky;top:0;z-index:20}
+    h1{font-size:18px;margin:0}
+    .wrap{display:grid;grid-template-columns:1.2fr .8fr;gap:16px;padding:16px;max-width:1200px;margin:0 auto}
+    .panel{background:var(--panel);border:1px solid #1f2937;border-radius:14px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    .panel h2{margin:0;padding:10px 12px;font-size:13px;letter-spacing:.02em;color:var(--muted);border-bottom:1px solid #1f2937;background:#0b1220}
+    .code{padding:12px;overflow:auto;max-height:70vh}
+    pre{margin:0;line-height:1.6;font-size:15px}
+    .line{display:flex;gap:12px;align-items:baseline;padding:1px 6px;border-radius:8px;transition:background .2s, outline .2s}
+    .line-number{width:42px;text-align:right;color:#64748b;user-select:none}
+    .line.hl{background:rgba(34,211,238,.12);outline:1px solid rgba(34,211,238,.35)}
+    .line .code-text{white-space:pre}
+
+    .controls{display:flex;align-items:center;gap:8px;padding:10px;border-top:1px solid #1f2937;background:#0b1220}
+    .btn{border:1px solid #334155;background:#0f172a;color:var(--ink);padding:8px 10px;border-radius:10px;font-size:13px;cursor:pointer}
+    .btn:hover{border-color:#475569}
+    .btn:active{transform:translateY(1px)}
+    .btn.primary{border-color:#0891b2;background:#0b2630}
+    .status{margin-left:auto;color:var(--muted);font-size:12px}
+
+    canvas{display:block;width:100%;height:70vh;background:repeating-linear-gradient( 0deg, #0e162a 0 20px, #0c1426 20px 40px );}
+    .legend{display:flex;gap:12px;align-items:center;padding:8px 12px;color:var(--muted);font-size:12px}
+    .dot{width:10px;height:10px;border-radius:50%}
+    .dot.return{background:var(--success)}
+    .dot.update{background:var(--accent-2)}
+    .desc{padding:10px 12px;border-top:1px solid #1f2937;color:#cbd5e1;font-size:13px;min-height:44px;background:#0b1220}
+    .slider{accent-color:var(--accent)}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Visualizzatore step‑by‑step: evidenzia riga + call stack (fattoriale)</h1>
+  </header>
+
+  <div class="wrap">
+    <!-- CODE PANEL -->
+    <section class="panel" id="codePanel">
+      <h2>Codice</h2>
+      <div class="code" id="code"></div>
+      <div class="desc" id="desc">Pronto.</div>
+      <div class="controls">
+        <button class="btn" id="reset">Reset</button>
+        <button class="btn" id="prev">⟵ Prev</button>
+        <button class="btn primary" id="next">Next ⟶</button>
+        <button class="btn" id="play">▶︎ Auto</button>
+        <label style="display:flex;align-items:center;gap:6px;margin-left:8px">Velocità <input id="speed" class="slider" type="range" min="300" max="2500" step="100" value="1200"></label>
+        <div class="status" id="status">Step 0/0</div>
+      </div>
+    </section>
+
+    <!-- STACK PANEL -->
+    <section class="panel">
+      <h2>Call Stack</h2>
+      <canvas id="stackCanvas"></canvas>
+      <div class="legend">
+        <div class="dot return"></div> return (mostra valore)
+        <div class="dot update"></div> update variabili (valore precedente barrato)
+      </div>
+    </section>
+  </div>
+
+<script>
+  // --- Code source with line numbers ---
+  const codeLines = [
+    {n:50, t:'def fattoriale(n):'},
+    {n:51, t:'    if n == 0:'},
+    {n:52, t:'        return 1'},
+    {n:53, t:'    else:'},
+    {n:54, t:'        num = fattoriale(n-1) * n'},
+    {n:55, t:'        return num'},
+    {n:56, t:''},
+    {n:57, t:'fattoriale(4)'},
+  ];
+
+  // Helper to render code
+  const codeRoot = document.getElementById('code');
+  function renderCode(){
+    codeRoot.innerHTML = '';
+    const pre = document.createElement('pre');
+    codeLines.forEach((ln)=>{
+      const div = document.createElement('div');
+      div.className = 'line';
+      div.dataset.line = ln.n;
+      const num = document.createElement('span');
+      num.className = 'line-number';
+      num.textContent = ln.n;
+      const text = document.createElement('span');
+      text.className = 'code-text';
+      text.textContent = ln.t || ' ';
+      div.appendChild(num); div.appendChild(text);
+      pre.appendChild(div);
+    });
+    codeRoot.appendChild(pre);
+  }
+  renderCode();
+
+  // Canvas setup
+  const canvas = document.getElementById('stackCanvas');
+  const ctx = canvas.getContext('2d');
+  function resizeCanvas(){
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * devicePixelRatio;
+    canvas.height = rect.height * devicePixelRatio;
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.scale(devicePixelRatio, devicePixelRatio);
+    drawStack();
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  // -------- Trace builder (clean) --------
+  // step: { line, desc, frames, event, retVal, change:{frame, items:[{k,oldVal,newVal}]}}
+  function buildTrace(){
+    const trace = [];
+    function pushStep({line, desc, frames, event, retVal, change}){
+      trace.push({ line, desc, frames: JSON.parse(JSON.stringify(frames)), event, retVal, change });
+    }
+
+    // frames: bottom is main()
+    const frames = [{ name:'main()', locals:{}, note:'', kind:'base' }];
+
+    function simulate(n){
+      // push recursive frame
+      frames.unshift({ name:'fattoriale(n)', locals:{ n:n, num:undefined }, note:'', kind:'call' });
+      pushStep({ line:51, desc:`Controllo base case: n == 0? (n=${n})`, frames, event:'check' });
+      if(n === 0){
+        frames[0].kind = 'return';
+        frames[0].note = 'return 1';
+        pushStep({ line:52, desc:'Caso base: ritorna 1', frames, event:'return', retVal:1 });
+        frames.shift();
+        return 1;
+      }
+      // recursive call then update
+      pushStep({ line:54, desc:`Calcola fattoriale(${n-1}) * ${n}: prima chiama fattoriale(${n-1})`, frames, event:'check' });
+      const sub = simulate(n-1);
+      const oldNum = frames[0].locals.num;
+      frames[0].locals.num = sub * n;
+      pushStep({ line:54, desc:`num = ${sub} * ${n} → ${frames[0].locals.num}`, frames, event:'update', change:{ frame:'fattoriale(n)', items:[{k:'num', oldVal:oldNum, newVal:frames[0].locals.num}] } });
+      frames[0].kind = 'return';
+      frames[0].note = `return ${frames[0].locals.num}`;
+      const ret = frames[0].locals.num;
+      pushStep({ line:55, desc:`Ritorna num → ${ret}`, frames, event:'return', retVal:ret });
+      frames.shift();
+      return ret;
+    }
+
+    // start from code line 57
+    simulate(4);
+    return trace; // <— nessuna virgola dopo questa riga :)
+  }
+
+  const trace = buildTrace();
+
+  // -------- Self tests (non cambiare test esistenti) --------
+  // Aggiungo test extra senza modificare quelli presenti
+  function factJS(n){ return n===0?1:factJS(n-1)*n; }
+  ;(function selfTests(){
+    try{
+      console.assert(Array.isArray(trace) && trace.length > 0, 'Trace non generata');
+      // test base
+      console.assert(factJS(0) === 1, 'fattoriale(0) deve valere 1');
+      console.assert(factJS(1) === 1, 'fattoriale(1) deve valere 1');
+      console.assert(factJS(4) === 24, 'fattoriale(4) deve valere 24');
+      const lastReturn = trace[trace.length-1];
+      console.assert(lastReturn.event==='return' && lastReturn.retVal===24, 'Ultimo step deve essere return 24');
+      console.log('[SelfTests] OK');
+    }catch(e){ console.warn('[SelfTests] errore', e); }
+  })();
+
+  // -------- Playback/UI --------
+  let idx = 0; let timer = null;
+  const status = document.getElementById('status');
+  const descEl = document.getElementById('desc');
+  const speed = document.getElementById('speed');
+
+  function setHighlight(line){
+    document.querySelectorAll('.line').forEach(el=>{
+      el.classList.toggle('hl', Number(el.dataset.line)===Number(line));
+    });
+    const el = document.querySelector(`.line[data-line="${line}"]`);
+    if(el){ el.scrollIntoView({block:'center', behavior:'smooth'}); }
+  }
+
+  function drawStack(){
+    if(!trace.length) return;
+    const step = trace[idx] ?? trace[trace.length-1];
+    const frames = step.frames;
+
+    const rect = canvas.getBoundingClientRect();
+    const W = rect.width; const H = rect.height;
+    ctx.clearRect(0,0,W,H);
+
+    const pad = 14, gap = 12, rowH = 78; let y = H - pad;
+
+    function drawValueWithChange(x,y,key,val,chg){
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '13px ui-monospace, monospace';
+      const label = key + ': ';
+      ctx.fillText(label, x, y);
+      let lx = x + ctx.measureText(label).width;
+      if(chg){
+        const oldTxt = String(chg.oldVal === undefined ? '—' : chg.oldVal);
+        ctx.fillStyle = '#f87171';
+        ctx.fillText(oldTxt, lx, y);
+        const w = ctx.measureText(oldTxt).width;
+        ctx.strokeStyle = '#f87171'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(lx, y-6); ctx.lineTo(lx+w, y-6); ctx.stroke();
+        lx += w + 6;
+        ctx.fillStyle = '#e5e7eb';
+        ctx.fillText(String(chg.newVal), lx, y);
+      } else {
+        ctx.fillStyle = '#e5e7eb';
+        ctx.fillText(String(val===undefined?'—':val), lx, y);
+      }
+    }
+
+    frames.slice().reverse().forEach((fr)=>{
+      const h = rowH; const w = W - pad*2; y -= h; const x = pad;
+      ctx.fillStyle = '#0b1220'; ctx.strokeStyle = '#223047'; ctx.lineWidth = 1.5;
+      roundRect(ctx,x,y,w,h,12,true,true);
+      ctx.fillStyle = '#0f1d30'; roundRect(ctx,x,y,w,22,12,true,false);
+      ctx.fillStyle = '#7dd3fc'; ctx.font = '12px ui-monospace, monospace'; ctx.fillText(fr.name, x+10, y+15);
+
+      const changeForThis = (step.change && step.change.frame === fr.name) ? step.change.items.reduce((m,it)=>{m[it.k]=it;return m;}, {}) : {};
+      const entries = Object.entries(fr.locals||{});
+      drawValueWithChange(x+12, y+40, entries[0]?.[0]||'', entries[0]?.[1], changeForThis[entries[0]?.[0]]);
+      drawValueWithChange(x+12, y+58, entries[1]?.[0]||'', entries[1]?.[1], changeForThis[entries[1]?.[0]]);
+      drawValueWithChange(x+12, y+76, entries[2]?.[0]||'', entries[2]?.[1], changeForThis[entries[2]?.[0]]);
+
+      if(step.event==='update' && step.change && step.change.frame === fr.name){
+        const label = 'update';
+        const metrics = ctx.measureText(label);
+        const nw = metrics.width + 16; const nh = 18; const ny = y+24; const nx = x+w-nw-10;
+        ctx.fillStyle = '#2b1f05'; roundRect(ctx,nx,ny,nw,nh,9,true,false);
+        ctx.fillStyle = '#f59e0b'; ctx.font = '12px ui-monospace, monospace'; ctx.fillText(label, nx+8, ny+13);
+      }
+      if(step.event==='return' && fr.kind==='return'){
+        const label = `return: ${String(step.retVal)}`;
+        const metrics = ctx.measureText(label);
+        const nw = metrics.width + 16; const nh = 18; const ny = y+24; const nx = x+w-nw-10;
+        ctx.fillStyle = '#052e2b'; roundRect(ctx,nx,ny,nw,nh,9,true,false);
+        ctx.fillStyle = '#34d399'; ctx.font = '12px ui-monospace, monospace'; ctx.fillText(label, nx+8, ny+13);
+      }
+
+      y -= gap;
+    });
+  }
+
+  function roundRect(ctx, x, y, w, h, r, fill, stroke){
+    if(w<2*r) r = w/2; if(h<2*r) r = h/2;
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+    if(fill) ctx.fill(); if(stroke) ctx.stroke();
+  }
+
+  function render(){
+    const step = trace[idx];
+    setHighlight(step.line);
+    descEl.textContent = step.desc;
+    status.textContent = `Step ${idx+1}/${trace.length}`;
+    drawStack();
+  }
+
+  function next(){ idx = Math.min(idx+1, trace.length-1); render(); }
+  function prev(){ idx = Math.max(idx-1, 0); render(); }
+  function reset(){ idx = 0; render(); }
+
+  // Controls
+  document.getElementById('next').onclick = next;
+  document.getElementById('prev').onclick = prev;
+  document.getElementById('reset').onclick = reset;
+  const playBtn = document.getElementById('play');
+  playBtn.onclick = () => {
+    if(timer){ clearInterval(timer); timer=null; playBtn.textContent='▶︎ Auto'; return; }
+    playBtn.textContent='⏸︎ Stop';
+    timer = setInterval(()=>{
+      if(idx >= trace.length-1){ clearInterval(timer); timer=null; playBtn.textContent='▶︎ Auto'; return; }
+      next();
+    }, Number(speed.value));
+  };
+  speed.oninput = ()=>{ if(timer){ clearInterval(timer); timer=null; document.getElementById('play').textContent='▶︎ Auto'; } };
+
+  // Init
+  resizeCanvas();
+  render();
+</script>
+</body>
+</html>
