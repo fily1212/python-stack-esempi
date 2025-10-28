@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Visualizzatori Step‑by‑step • Index</title>
+  <style>
+    :root{
+      --bg:#0f172a; /* slate-900 */
+      --panel:#111827; /* gray-900 */
+      --ink:#e5e7eb; /* gray-200 */
+      --muted:#94a3b8; /* slate-400 */
+      --accent:#22d3ee; /* cyan-400 */
+      --accent-2:#f59e0b; /* amber-500 */
+      --success:#34d399; /* green-400 */
+      --grid:#1f2937; /* slate-800 */
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,"Noto Sans",sans-serif;background:radial-gradient(1200px 600px at 10% -10%, #13213d 0%, transparent 60%), radial-gradient(1000px 500px at 110% -20%, #0b2030 0%, transparent 60%), linear-gradient(180deg,#0b1224 0 40%, #0f172a 40% 100%); color:var(--ink)}
+    header{position:sticky;top:0;z-index:10;backdrop-filter:blur(8px);background:rgba(17,24,39,.75);border-bottom:1px solid var(--grid)}
+    .head-wrap{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:16px;padding:16px 20px}
+    h1{font-size:20px;margin:0}
+    .sub{color:var(--muted);font-size:13px}
+
+    main{max-width:1100px;margin:0 auto;padding:22px}
+    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
+    @media (max-width:900px){.grid{grid-template-columns:repeat(6,1fr)}}
+    @media (max-width:600px){.grid{grid-template-columns:repeat(2,1fr)}}
+
+    .card{grid-column:span 3;background:var(--panel);border:1px solid var(--grid);border-radius:16px;overflow:hidden;box-shadow:0 10px 28px rgba(0,0,0,.25);display:flex;flex-direction:column;min-height:180px}
+    .card:hover{border-color:#2a405c;transform:translateY(-2px);transition:transform .15s ease, border-color .2s ease}
+    .card .cover{height:82px;background:repeating-linear-gradient( 90deg, #0e162a 0 24px, #0c1426 24px 48px );display:flex;align-items:center;justify-content:center}
+    .card .icon{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:#0b2630;border:1px solid #0f3644}
+    .card .icon svg{width:26px;height:26px;fill:#7dd3fc}
+    .card .body{padding:12px 14px 14px}
+    .title{font-weight:600}
+    .desc{color:var(--muted);font-size:13px;margin-top:4px;min-height:34px}
+    .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+    .tag{font-size:11px;color:#0b2630;background:#7dd3fc;border:1px solid #5ec9f5;border-radius:999px;padding:3px 8px}
+    .tag.alt{background:#fcd34d;border-color:#f59e0b;color:#3b2800}
+    .cta{margin-top:auto;padding:10px 14px;border-top:1px solid var(--grid);display:flex;gap:8px;align-items:center;justify-content:space-between}
+    .cta a{display:inline-flex;gap:8px;align-items:center;text-decoration:none;color:var(--ink);font-weight:600;border:1px solid #334155;background:#0f172a;padding:8px 10px;border-radius:10px}
+    .cta a:hover{border-color:#475569}
+    .arrow{opacity:.8}
+
+    footer{max-width:1100px;margin:24px auto 50px;color:var(--muted);font-size:12px;padding:0 22px}
+    code{background:#0b1220;border:1px solid var(--grid);border-radius:8px;padding:2px 6px}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="head-wrap">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M3 6.5C3 5.12 4.12 4 5.5 4h6.25c.55 0 1 .45 1 1v1.5H18.5c.83 0 1.5.67 1.5 1.5V18.5c0 .83-.67 1.5-1.5 1.5H8.75c-.55 0-1-.45-1-1V17H5.5A2.5 2.5 0 0 1 3 14.5V6.5Zm2.5-.5c-.28 0-.5.22-.5.5v8c0 .28.22.5.5.5h4.25V6H5.5Zm6.25 12h6.75a.5.5 0 0 0 .5-.5V8H11.75v10Z" fill="#7dd3fc"/></svg>
+      <div>
+        <h1>Visualizzatori stack Step‑by‑step</h1>
+        <div class="sub">Clicca per aprire i vari esercizi</div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="grid">
+      <!-- is_even -->
+      <article class="card">
+        <div class="cover"><div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3h10v2H7V3Zm-2 4h14v2H5V7Zm2 4h10v2H7v-2Zm-2 4h14v2H5v-2Zm2 4h10v2H7v-2Z"/></svg></div></div>
+        <div class="body">
+          <div class="title">is_even</div>
+          <div class="desc">While + funzione semplice con somma condizionata e stampa.</div>
+          <div class="tags"><span class="tag">funzioni</span><span class="tag alt">while</span></div>
+        </div>
+        <div class="cta"><a href="is_even.html"><span>Apri demo</span><span class="arrow">→</span></a></div>
+      </article>
+
+      <!-- fattoriale -->
+      <article class="card">
+        <div class="cover"><div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 4h12v2H6V4Zm0 4h12v2H6V8Zm0 4h12v2H6v-2Zm0 4h12v2H6v-2Z"/></svg></div></div>
+        <div class="body">
+          <div class="title">fattoriale</div>
+          <div class="desc">Ricorsione con caso base, return con valore e frame multipli.</div>
+          <div class="tags"><span class="tag">ricorsione</span><span class="tag alt">return</span></div>
+        </div>
+        <div class="cta"><a href="fattoriale.html"><span>Apri demo</span><span class="arrow">→</span></a></div>
+      </article>
+
+      <!-- soglia / meta -->
+      <article class="card">
+        <div class="cover"><div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16v2H4V5Zm0 6h16v2H4v-2Zm0 6h16v2H4v-2Z"/></svg></div></div>
+        <div class="body">
+          <div class="title">soglia + meta</div>
+          <div class="desc">Chiamate annidate, return booleano e update con barrato.</div>
+          <div class="tags"><span class="tag">if/else</span><span class="tag alt">funzioni</span></div>
+        </div>
+        <div class="cta"><a href="soglia.html"><span>Apri demo</span><span class="arrow">→</span></a></div>
+      </article>
+
+      <!-- add / subtract / process_numbers -->
+      <article class="card">
+        <div class="cover"><div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M11 3h2v18h-2V3Zm-8 8h18v2H3v-2Z"/></svg></div></div>
+        <div class="body">
+          <div class="title">add / subtract / process_numbers</div>
+          <div class="desc">Pipeline di funzioni: somma → sottrazione → return finale.</div>
+          <div class="tags"><span class="tag">pipeline</span><span class="tag alt">return</span></div>
+        </div>
+        <div class="cta"><a href="add-sub.html"><span>Apri demo</span><span class="arrow">→</span></a></div>
+      </article>
+    </div>
+  </main>
+
+</body>
+</html>
