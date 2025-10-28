@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Step Python: call stack</title>
+  <style>
+    :root{
+      --bg:#0f172a; /* slate-900 */
+      --panel:#111827; /* gray-900 */
+      --ink:#e5e7eb; /* gray-200 */
+      --muted:#94a3b8; /* slate-400 */
+      --accent:#22d3ee; /* cyan-400 */
+      --accent-2:#f59e0b; /* amber-500 */
+      --success:#34d399; /* green-400 */
+      --danger:#f87171; /* red-400 */
+      --grid:#1f2937;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;background:linear-gradient(180deg,#0b1224,#0f172a 30%);color:var(--ink)}
+    header{padding:16px 20px;border-bottom:1px solid #1f2937;background:rgba(17,24,39,.7);backdrop-filter:blur(6px);position:sticky;top:0;z-index:20}
+    h1{font-size:18px;margin:0}
+    .wrap{display:grid;grid-template-columns:1.2fr .8fr;gap:16px;padding:16px;max-width:1200px;margin:0 auto}
+    .panel{background:var(--panel);border:1px solid #1f2937;border-radius:14px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    .panel h2{margin:0;padding:10px 12px;font-size:13px;letter-spacing:.02em;color:var(--muted);border-bottom:1px solid #1f2937;background:#0b1220}
+    .code{padding:12px;overflow:auto;max-height:70vh}
+    pre{margin:0;line-height:1.6;font-size:15px}
+    .line{display:flex;gap:12px;align-items:baseline;padding:1px 6px;border-radius:8px;transition:background .2s, outline .2s}
+    .line-number{width:42px;text-align:right;color:#64748b;user-select:none}
+    .line.hl{background:rgba(34,211,238,.12);outline:1px solid rgba(34,211,238,.35)}
+    .line .code-text{white-space:pre}
+
+    .controls{display:flex;align-items:center;gap:8px;padding:10px;border-top:1px solid #1f2937;background:#0b1220}
+    .btn{border:1px solid #334155;background:#0f172a;color:var(--ink);padding:8px 10px;border-radius:10px;font-size:13px;cursor:pointer}
+    .btn:hover{border-color:#475569}
+    .btn:active{transform:translateY(1px)}
+    .btn.primary{border-color:#0891b2;background:#0b2630}
+    .status{margin-left:auto;color:var(--muted);font-size:12px}
+
+    canvas{display:block;width:100%;height:70vh;background:repeating-linear-gradient( 0deg, #0e162a 0 20px, #0c1426 20px 40px );}
+    .legend{display:flex;gap:12px;align-items:center;padding:8px 12px;color:var(--muted);font-size:12px}
+    .dot{width:10px;height:10px;border-radius:50%}
+    .dot.call{background:var(--accent)}
+    .dot.return{background:var(--success)}
+    .dot.update{background:var(--accent-2)}
+    .desc{padding:10px 12px;border-top:1px solid #1f2937;color:#cbd5e1;font-size:13px;min-height:44px;background:#0b1220}
+    .slider{accent-color:var(--accent)}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Visualizzatore Stack d'esecuzione step‑by‑step: esempio is_even</h1>
+  </header>
+
+  <div class="wrap">
+    <!-- CODE PANEL -->
+    <section class="panel" id="codePanel">
+      <h2>Codice</h2>
+      <div class="code" id="code"></div>
+      <div class="desc" id="desc">Pronto.</div>
+      <div class="controls">
+        <button class="btn" id="reset">Reset</button>
+        <button class="btn" id="prev">⟵ Prev</button>
+        <button class="btn primary" id="next">Next ⟶</button>
+        <button class="btn" id="play">▶︎ Auto</button>
+        <label style="display:flex;align-items:center;gap:6px;margin-left:8px">Velocità <input id="speed" class="slider" type="range" min="300" max="2500" step="100" value="1200"></label>
+        <div class="status" id="status">Step 0/0</div>
+      </div>
+    </section>
+
+    <!-- STACK PANEL -->
+    <section class="panel">
+      <h2>Call Stack</h2>
+      <canvas id="stackCanvas"></canvas>
+      <div class="legend">
+        <div class="dot return"></div> return (mostra valore)
+        <div class="dot update"></div> update variabili (valore precedente barrato)
+      </div>
+    </section>
+  </div>
+
+<script>
+  // --- Code source with line numbers (matching screenshot) ---
+  const codeLines = [
+    {n:57, t:'def is_even(number):'},
+    {n:58, t:'    return number % 2 == 0'},
+    {n:59, t:''},
+    {n:60, t:'total_sum = 0'},
+    {n:61, t:'current = 5'},
+    {n:62, t:'while current > 0:'},
+    {n:63, t:'    if is_even(current):'},
+    {n:64, t:'        total_sum = total_sum + current'},
+    {n:65, t:'    current = current - 1'},
+    {n:66, t:''},
+    {n:67, t:'print(f"Esercizio: {total_sum}")'},
+  ];
+
+  // Helper to mount code DOM
+  const codeRoot = document.getElementById('code');
+  function renderCode(){
+    codeRoot.innerHTML = '';
+    const pre = document.createElement('pre');
+    codeLines.forEach((ln)=>{
+      const div = document.createElement('div');
+      div.className = 'line';
+      div.dataset.line = ln.n;
+      const num = document.createElement('span');
+      num.className = 'line-number';
+      num.textContent = ln.n;
+      const text = document.createElement('span');
+      text.className = 'code-text';
+      text.textContent = ln.t || ' ';
+      div.appendChild(num); div.appendChild(text);
+      pre.appendChild(div);
+    });
+    codeRoot.appendChild(pre);
+  }
+  renderCode();
+
+  // Stack canvas drawing
+  const canvas = document.getElementById('stackCanvas');
+  const ctx = canvas.getContext('2d');
+  function resizeCanvas(){
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * devicePixelRatio;
+    canvas.height = rect.height * devicePixelRatio;
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.scale(devicePixelRatio, devicePixelRatio);
+    drawStack();
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  // STEP STRUCTURE
+  // { line, desc, frames, event, retVal, change:{frame:'main()', items:[{k,oldVal,newVal}]}}
+
+  function buildTrace(){
+
+    const trace = [];
+    const framesBase = [ {name:'main()', locals:{current:undefined,total_sum:undefined}, note:'', kind:'base'} ];
+
+    function pushStep({line, desc, frames, event, retVal, change}){
+      trace.push({ line, desc, frames: JSON.parse(JSON.stringify(frames)), event, retVal, change });
+    }
+
+    const frames = JSON.parse(JSON.stringify(framesBase));
+
+    // 60 total_sum = 0
+    const oldTS0 = frames[0].locals.total_sum;
+    frames[0].locals.total_sum = 0;
+    pushStep({line:60, desc:'Inizializza total_sum a 0', frames, event:'update', badge:'update', change:{frame:'main()', items:[{k:'total_sum', oldVal:oldTS0, newVal:0}]}});
+
+    // 61 current = 5
+    const oldC5 = frames[0].locals.current;
+    frames[0].locals.current = 5;
+    pushStep({line:61, desc:'Imposta current a 5', frames, event:'update', badge:'update', change:{frame:'main()', items:[{k:'current', oldVal:oldC5, newVal:5}]}});
+
+    function is_even(n){ return n % 2 === 0; }
+
+    // Loop while current > 0
+    while(frames[0].locals.current > 0){
+      pushStep({line:62, desc:`Controllo condizione: current (${frames[0].locals.current}) > 0`, frames, event:'check'});
+
+      // 63 call is_even(current)
+      const arg = frames[0].locals.current;
+      frames.unshift({name:'is_even(number)', locals:{number:arg}, note:'', kind:'call'});
+
+      // 58 return
+      const res = is_even(arg);
+      frames[0].note = `return ${res}`;
+      frames[0].kind = 'return';
+      pushStep({line:58, desc:`return ${res} (number % 2 == 0)`, frames, event:'return', retVal:res});
+
+      // pop is_even frame
+      frames.shift();
+
+      if(res){
+        const before = frames[0].locals.total_sum ?? 0;
+        frames[0].locals.total_sum = before + arg;
+        pushStep({line:64, desc:`Somma perché pari: total_sum += ${arg} → ${frames[0].locals.total_sum}`,
+                  frames, event:'update', badge:'update', change:{frame:'main()', items:[{k:'total_sum', oldVal:before, newVal:frames[0].locals.total_sum}]}});
+      } else {
+        pushStep({line:63, desc:`Salta il blocco: ${arg} è dispari`, frames, event:'check'});
+      }
+
+      const oldC = frames[0].locals.current;
+      frames[0].locals.current = frames[0].locals.current - 1;
+      pushStep({line:65, desc:`Decrementa current → ${frames[0].locals.current}`,
+                frames, event:'update', badge:'update', change:{frame:'main()', items:[{k:'current', oldVal:oldC, newVal:frames[0].locals.current}]}});
+    }
+
+    pushStep({line:62, desc:`Condizione falsa (${frames[0].locals.current} > 0) → esco dal while`, frames, event:'check'});
+    pushStep({line:67, desc:`Stampa: Esercizio: ${frames[0].locals.total_sum}`, frames, event:'print'});
+
+    return trace;
+  }
+
+  const trace = buildTrace();
+
+  // --- Simple runtime checks ("test cases") ---
+  ;(function selfTest(){
+    try{
+      console.assert(Array.isArray(trace) && trace.length > 0, 'Trace non generata');
+      const last = trace[trace.length-1];
+      console.assert(last.line === 67 && last.event === 'print', 'Ultimo step dovrebbe essere la stampa');
+      const mainFrame = last.frames.find(f => f.name === 'main()') || last.frames[last.frames.length-1];
+      const sumAtEnd = mainFrame?.locals?.total_sum;
+      console.assert(sumAtEnd === 6, 'total_sum finale atteso = 6');
+      console.log('[SelfTest] OK: total_sum=', sumAtEnd, ' steps=', trace.length);
+    }catch(e){ console.warn('[SelfTest] errore', e); }
+  })();
+
+  // --- Playback state ---
+  let idx = 0; let timer = null;
+  const status = document.getElementById('status');
+  const descEl = document.getElementById('desc');
+  const speed = document.getElementById('speed');
+
+  function setHighlight(line){
+    document.querySelectorAll('.line').forEach(el=>{
+      el.classList.toggle('hl', Number(el.dataset.line)===Number(line));
+    });
+    const el = document.querySelector(`.line[data-line="${line}"]`);
+    if(el){ el.scrollIntoView({block:'center', behavior:'smooth'}); }
+  }
+
+  function drawStack(){
+    if(!trace.length) return;
+    const step = trace[idx] ?? trace[trace.length-1];
+    const frames = step.frames;
+
+    const rect = canvas.getBoundingClientRect();
+    const W = rect.width; const H = rect.height;
+    ctx.clearRect(0,0,W,H);
+
+    const pad = 14, gap = 12, rowH = 78; let y = H - pad;
+
+    // Helper to render a value with optional strikethrough old value
+    function drawValueWithChange(x,y,key,val,chg){
+      // key label
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '13px ui-monospace, monospace';
+      const label = key + ': ';
+      ctx.fillText(label, x, y);
+      let lx = x + ctx.measureText(label).width;
+
+      if(chg){
+        // old value in red with strike
+        const oldTxt = String(chg.oldVal === undefined ? '—' : chg.oldVal);
+        ctx.fillStyle = '#f87171';
+        ctx.fillText(oldTxt, lx, y);
+        const w = ctx.measureText(oldTxt).width;
+        ctx.strokeStyle = '#f87171';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(lx, y-6);
+        ctx.lineTo(lx + w, y-6);
+        ctx.stroke();
+        lx += w + 6;
+        // new value normal
+        ctx.fillStyle = '#e5e7eb';
+        ctx.fillText(String(chg.newVal), lx, y);
+      } else {
+        ctx.fillStyle = '#e5e7eb';
+        ctx.fillText(String(val===undefined?'—':val), lx, y);
+      }
+    }
+
+    frames.slice().reverse().forEach((fr)=>{
+      const h = rowH; const w = W - pad*2; y -= h; const x = pad;
+
+      // frame box
+      ctx.fillStyle = '#0b1220'; ctx.strokeStyle = '#223047'; ctx.lineWidth = 1.5;
+      roundRect(ctx,x,y,w,h,12,true,true);
+
+      // header
+      ctx.fillStyle = '#0f1d30'; roundRect(ctx,x,y,w,22,12,true,false);
+
+      // title
+      ctx.fillStyle = '#7dd3fc'; ctx.font = '12px ui-monospace, monospace'; ctx.fillText(fr.name, x+10, y+15);
+
+      // figure out changes for this frame (if any)
+      const changeForThis = (step.change && step.change.frame === fr.name) ? step.change.items.reduce((m,it)=>{m[it.k]=it;return m;}, {}) : {};
+
+      // locals lines (up to 3 rows)
+      const entries = Object.entries(fr.locals||{});
+      drawValueWithChange(x+12, y+40, entries[0]?.[0]||'', entries[0]?.[1], changeForThis[entries[0]?.[0]]);
+      drawValueWithChange(x+12, y+58, entries[1]?.[0]||'', entries[1]?.[1], changeForThis[entries[1]?.[0]]);
+      drawValueWithChange(x+12, y+76, entries[2]?.[0]||'', entries[2]?.[1], changeForThis[entries[2]?.[0]]);
+
+      // badges: show UPDATE on the changed frame only; show RETURN with value only on returning frame
+      if(step.event==='update' && step.change && step.change.frame === fr.name){
+        const label = 'update';
+        const colorFill = '#2b1f05';
+        const colorText = '#f59e0b';
+        const metrics = ctx.measureText(label);
+        const nw = metrics.width + 16; const nh = 18; const ny = y+24; const nx = x+w-nw-10;
+        ctx.fillStyle = colorFill; roundRect(ctx,nx,ny,nw,nh,9,true,false);
+        ctx.fillStyle = colorText; ctx.font = '12px ui-monospace, monospace'; ctx.fillText(label, nx+8, ny+13);
+      }
+      if(step.event==='return' && fr.kind==='return'){
+        const label = `return: ${String(step.retVal)}`;
+        const colorFill = '#052e2b';
+        const colorText = '#34d399';
+        const metrics = ctx.measureText(label);
+        const nw = metrics.width + 16; const nh = 18; const ny = y+24; const nx = x+w-nw-10;
+        ctx.fillStyle = colorFill; roundRect(ctx,nx,ny,nw,nh,9,true,false);
+        ctx.fillStyle = colorText; ctx.font = '12px ui-monospace, monospace'; ctx.fillText(label, nx+8, ny+13);
+      }
+
+      y -= gap;
+    });
+  }
+
+  function roundRect(ctx, x, y, w, h, r, fill, stroke){
+    if(w<2*r) r = w/2; if(h<2*r) r = h/2;
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+    if(fill) ctx.fill(); if(stroke) ctx.stroke();
+  }
+
+  function render(){
+    const step = trace[idx];
+    setHighlight(step.line);
+    descEl.textContent = step.desc;
+    status.textContent = `Step ${idx+1}/${trace.length}`;
+    drawStack();
+  }
+
+  function next(){ idx = Math.min(idx+1, trace.length-1); render(); }
+  function prev(){ idx = Math.max(idx-1, 0); render(); }
+  function reset(){ idx = 0; render(); }
+
+  // Controls
+  document.getElementById('next').onclick = next;
+  document.getElementById('prev').onclick = prev;
+  document.getElementById('reset').onclick = reset;
+  const playBtn = document.getElementById('play');
+  playBtn.onclick = () => {
+    if(timer){ clearInterval(timer); timer=null; playBtn.textContent='▶︎ Auto'; return; }
+    playBtn.textContent='⏸︎ Stop';
+    timer = setInterval(()=>{
+      if(idx >= trace.length-1){ clearInterval(timer); timer=null; playBtn.textContent='▶︎ Auto'; return; }
+      next();
+    }, Number(speed.value));
+  };
+  speed.oninput = ()=>{ if(timer){ clearInterval(timer); timer=null; document.getElementById('play').textContent='▶︎ Auto'; } };
+
+  // Init
+  resizeCanvas();
+  render();
+</script>
+</body>
+</html>
